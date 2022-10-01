@@ -1,0 +1,363 @@
+---
+title: "Régression multiple"
+output: pdf_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("readxl")
+data_calf<-read_excel("California_Houses.xlsx")
+```
+
+```{r}
+data_calf=transform(data_calf, Median_Income=as.numeric( Median_Income),
+                    Distance_to_coast=as.numeric(Distance_to_coast),
+                    Distance_to_LA=as.numeric(Distance_to_LA),
+                    Distance_to_SanJose=as.numeric(Distance_to_SanJose),
+                    Distance_to_SanFrancisco=as.numeric(Distance_to_SanFrancisco),
+                    Distance_to_SanDiego=as.numeric(Distance_to_SanDiego))
+summary(data_calf)
+```
+
+###1) Calcule du modèle de régression linéaire multiple incluant toute
+les variables explicatives
+
+```{r}
+regression_multiple<-lm(Median_House_Value ~ Median_Income + Median_Age + Tot_Rooms + Tot_Bedrooms + 
+                         Population+ Households + Distance_to_coast + Distance_to_LA  +                                       Distance_to_SanDiego + Distance_to_SanJose +
+                         Distance_to_SanFrancisco,data=data_calf)
+summary(regression_multiple)
+
+```
+
+###1-1)Existe-t-il des variables explicatives non significatives ?
+D'apres le resultat de la commande summary(regresssion_multiple),les
+varibles explicatives non significatives(elles ont p-value>0.05=alpha)
+sont de 5 variables, elles sont Median_Age , Households ,
+Distance_to_SanDiego , Distance_to_SanJose , Distance_to_SanFrancisco .
+
+###1-2) Donner la valeur de R et R_ajuste: D'apres le resultat de la
+regression on a : R² = 0.8073 R²_ajuste = 0.7854
+
+###1-3) le test de fisher ?\$ le test de fisher est significatif car car
+(la statistique F=36.93 est grande et la probabilité critique associé au
+test p-value\< 0.05), ce test signifie qu'il existe au moins une
+variable significativement non nulle.
+
+###2) Amélioration du modèle initiale par la procédure step
+
+```{r}
+reg_ameliore=step(regression_multiple)
+modele<-lm(Median_House_Value ~ Median_Income + Tot_Rooms + 
+              Tot_Bedrooms + Population + Distance_to_coast + Distance_to_LA + 
+              Distance_to_SanDiego + Distance_to_SanJose + Distance_to_SanFrancisco, 
+            data = data_calf)
+summary(modele)
+
+
+```
+
+Ce modèle amélioré laisse 9 variables explicatives parmi 12, il a pris
+les variables qu'ont p-value moins du seuil de significativité
+alpha(5%), ou une p-value petite meme si elle est supérieure à 5%. Après
+cette amélioration, nous avons remarqué que la valeur de R²_ajuste à
+passer de 0.7854 à 0.788 ,c'est à dire que le modèle explique environ
+79% des données, ce qui signifie qu'il y a une amélioration au niveau du
+modèle
+
+###2-1) les tests de validation pour le modèle amélioré de la procédure
+de step : - test d'homoscédasticité
+
+```{r}
+par(mfrow = c(1, 2))
+plot(reg_ameliore,1)
+plot(reg_ameliore,3)
+
+```
+
+On peut déduire a partir les deux graphes au dessus que l'hypothése
+d'homoscédasticité n'est pas vérifiée car la ligne en rouge pas
+horizontal , il n'y a pas une forme distingue.
+
+-   test de normalité (shapiro et ks)
+
+```{r}
+#test shapiro
+shapiro.test(reg_ameliore$residuals)
+
+#test ks
+ks.test(reg_ameliore$residuals,"pnorm")
+
+```
+
+les deux tests montrent que l'hypothése de normalité des résidus n'est
+pas vérifié car l'hypothése null (on a une distrubition normal) est
+significativement rejeté (p-value\<alpha=5%)
+
+-   recherche de valeurs aberrantes
+
+```{r}
+rse=sqrt(deviance(reg_ameliore)/df.residual(reg_ameliore))
+abr=abs(data_calf$Median_House_Value-predict(reg_ameliore))/rse
+plot(abr)
+abline(h=2,col='red')
+
+```
+
+Les valeurs qui sont au dessus de la ligne en rouge sont des valeurs
+aberrantes.il existe 7 valeurs aberantes. ###3) la méthode pas à pas de
+sélection des variables explicatives, basée sur le test de Fisher :
+#####Etape1 On commence la méthode pas à pas par l'intégration de la
+variable la plus significative (F le plus grand)
+
+```{r}
+nva=ncol(data_calf)
+Fish = rep(0,nva)
+for (i in  2:ncol(data_calf)){
+mod1<-lm(data_calf[,1]~data_calf[,i])
+Fish[i]=var(predict(mod1))*(nrow(data_calf)-1)/(deviance(mod1)/df.residual(mod1))
+}
+Fish
+df2=nrow(data_calf)-2
+df2
+1-pf(max(Fish),1,df2)
+```
+
+c'est la variable Mediane_Age qui a le plus grand F #etape2:
+Introduction
+
+```{r}
+nva=ncol(data_calf)-1
+Fish = rep(0,nva)
+SCR1<-deviance(lm(data_calf[,1]~data_calf[,2]))
+for (i in 3:ncol(data_calf)) {
+ mod<-lm(data_calf[,1]~data_calf[,2]+data_calf[,i])
+SCR2=deviance(mod)
+Fish[i]=(SCR1-SCR2)/(SCR2/(nrow(data_calf)-3))
+}
+Fish
+df2=nrow(data_calf)-3
+df2
+1-pf(max(Fish),1,df2)
+summary(mod)
+```
+
+c'est la variable Distance_to_coast qui a le plus grand F #Etape2:
+Retrait
+
+```{r}
+Fish = rep(0,2)
+SCR2=deviance(lm(data_calf[,1]~data_calf[,2]+data_calf[,8]))
+mod<-lm(data_calf[,1]~data_calf[,2])
+SCR1<-deviance(mod)
+Fish[1]=(SCR1-SCR2)/(SCR2/(nrow(data_calf)-3))
+
+mod<-lm(data_calf[,1]~data_calf[,8])
+SCR1=deviance(mod)
+Fish[2]=(SCR1-SCR2)/(SCR2/(nrow(data_calf)-3))
+Fish
+df2=nrow(data_calf)-3
+df2
+1-pf(min(Fish),1,df2)
+```
+
+aucun varibale n'est retire , les F sont significatifs
+
+#Etape3:Introduction
+
+```{r}
+Fish = rep(0,nva)
+SCR2<-deviance(lm(data_calf[,1]~data_calf[,2]+data_calf[,8]))
+for (i in 3:7) {
+ mod<-lm(data_calf[,1]~data_calf[,2]+data_calf[,8]+data_calf[,i])
+SCR3=deviance(mod)
+Fish[i]=(SCR2-SCR3)/(SCR3/(nrow(data_calf)-4))
+}
+for (i in 9:ncol(data_calf)) {
+ mod<-lm(data_calf[,1]~data_calf[,2]+data_calf[,8]+data_calf[,i])
+SCR3=deviance(mod)
+Fish[i]=(SCR2-SCR3)/(SCR3/(nrow(data_calf)-4))
+}
+Fish
+df2=nrow(data_calf)-4
+df2
+1-pf(max(Fish),1,df2)
+```
+
+c'est la variable Distance_to_LA qui a le plus grand F #Etape3: Retrait
+
+```{r}
+SCR3<-deviance(lm(data_calf[,1]~data_calf[,2]+data_calf[,8]+data_calf[,9]))
+Fish<-rep(0,3)
+mod<-lm(data_calf[,1]~data_calf[,2]+data_calf[,8])
+SCR2<-deviance(mod)
+Fish[1]=(SCR2-SCR3)/(SCR3/(nrow(data_calf)-4))
+
+mod<-lm(data_calf[,1]~data_calf[,2]+data_calf[,9])
+SCR2<-deviance(mod)
+Fish[2]=(SCR2-SCR3)/(SCR3/(nrow(data_calf)-4))
+
+mod<-lm(data_calf[,1]~data_calf[,8]+data_calf[,9])
+SCR2<-deviance(mod)
+Fish[3]=(SCR2-SCR3)/(SCR3/(nrow(data_calf)-4))
+
+Fish
+df2=nrow(data_calf)-4
+df2
+1-pf(min(Fish),1,df2)
+```
+
+aucun varibale n'est retire , les F sont significatifs #Etape 4:
+Introduction
+
+```{r}
+Fish = rep(0,nva)
+SCR3<-deviance(lm(data_calf[,1]~data_calf[,2]+data_calf[,8]+data_calf[,9]))
+for (i in 3:7) {
+ mod<-lm(data_calf[,1]~data_calf[,2]+data_calf[,8]+data_calf[,9]+data_calf[,i])
+SCR4=deviance(mod)
+Fish[i]=(SCR3-SCR4)/(SCR4/(nrow(data_calf)-4))
+}
+for (i in 10:ncol(data_calf)) {
+ mod<-lm(data_calf[,1]~data_calf[,2]+data_calf[,8]+data_calf[,9]+data_calf[,i])
+SCR4=deviance(mod)
+Fish[i]=(SCR3-SCR4)/(SCR4/(nrow(data_calf)-4))
+}
+Fish
+df2=nrow(data_calf)-4
+df2
+1-pf(max(Fish),1,df2)
+```
+
+la variable Distance_to_SanDiego a le plus grand F #Etape4: Retrait
+
+```{r}
+SCR4<-deviance(lm(data_calf[,1]~data_calf[,2]+data_calf[,8]+data_calf[,9]+data_calf[,10]))
+Fish<-rep(0,4)
+mod<-lm(data_calf[,1]~data_calf[,2]+data_calf[,8]+data_calf[,9])
+SCR3<-deviance(mod)
+Fish[1]=(SCR3-SCR4)/(SCR4/(nrow(data_calf)-4))
+
+mod<-lm(data_calf[,1]~data_calf[,2]+data_calf[,8]+data_calf[,10])
+SCR3<-deviance(mod)
+Fish[2]=(SCR3-SCR4)/(SCR4/(nrow(data_calf)-4))
+
+mod<-lm(data_calf[,1]~data_calf[,2]+data_calf[,9]+data_calf[,10])
+SCR3<-deviance(mod)
+Fish[3]=(SCR3-SCR4)/(SCR4/(nrow(data_calf)-4))
+
+mod<-lm(data_calf[,1]~data_calf[,8]+data_calf[,9]+data_calf[,10])
+SCR3<-deviance(mod)
+Fish[4]=(SCR3-SCR4)/(SCR4/(nrow(data_calf)-4))
+
+
+
+Fish
+df2=nrow(data_calf)-4
+df2
+1-pf(min(Fish),1,df2)
+```
+
+aucun variable n'est retire
+
+#Etape 5: Introduction
+
+```{r}
+Fish = rep(0,nva)
+SCR4<-deviance(lm(data_calf[,1]~data_calf[,2]+data_calf[,8]+data_calf[,9]+data_calf[,10]))
+for (i in 3:7) {
+ mod<-lm(data_calf[,1]~data_calf[,2]+data_calf[,8]+data_calf[,9]+data_calf[,10]+data_calf[,i])
+SCR5=deviance(mod)
+Fish[i]=(SCR4-SCR5)/(SCR5/(nrow(data_calf)-4))
+}
+Fish[8]=Fish[9]=Fish[10]=0
+for (i in 11:ncol(data_calf)) {
+ mod<-lm(data_calf[,1]~data_calf[,2]+data_calf[,8]+data_calf[,9]+data_calf[,10]+data_calf[,i])
+SCR5=deviance(mod)
+Fish[i]=(SCR4-SCR5)/(SCR5/(nrow(data_calf)-4))
+}
+Fish
+df2=nrow(data_calf)-4
+df2
+1-pf(max(Fish),1,df2)
+```
+
+LA variable Distance_to_SanJose a le plus grand F mais avec un
+p-valu>10% c'est la condition d'arret
+
+###3-1)Les tests de validation pour le modèle obtenu: - test d'homoscédasticité
+
+```{r}
+model2<-lm(Median_House_Value ~ Median_Income + Distance_to_coast + Distance_to_LA + 
+              Distance_to_SanDiego + Distance_to_SanJose ,
+            data = data_calf)
+par(mfrow = c(1, 2))
+plot(model2,1)
+plot(model2,3)
+
+```
+
+on observe que l'hypothése d'homoscédasticité n'est pas vérifié car la
+courbe en rouge n'est pas horizontal. - test de normalité
+
+```{r}
+#test shapiro
+shapiro.test(model2$residuals)
+
+#test ks
+ks.test(model2$residuals,"pnorm")
+
+```
+
+on déduit que l'hypothése null de normalité est rejeté, donc la
+distrubition des residus n'est pas une distrubition normal(Gaussien)
+test de valeurs aberantes
+
+```{r}
+rse=sqrt(deviance(model2)/df.residual(model2))
+abr=abs(data_calf$Median_House_Value-predict(model2))/rse
+plot(as.numeric(abr))
+abline(h=2,col='red')
+
+
+```
+
+###3-2) le critère AIC du modèle obtenu par cette méthode
+
+```{r}
+AIC(model2)
+```
+
+###3-3) Conclusion On constate que le premier amélioration de notre
+modèle de regression qu'est fait par la procédure step est mieux que la
+deuxiéme amélioration, car la valeur AIC du premier inférieure à la
+deuxiéme et pour le Adjusted R-squared de premier amélioration est un
+peu grand parappor la deuxiéme, et ca implique que le premier modèle
+amélioré explique bien la valeur dépendante que le deuxiéme modèle
+amélioré.
+
+Après la sélection des variables qui contribuent plus dans l'explication
+du variable dépendante , on peut conclure que le modèle obtenu est
+relativement valide car il est homogène, la normalité de ses résidus est
+acceptée par le test de Shapiro et son AIC est minimale. Le modèle
+obtenue après la sélection des variables est meilleur que le premier
+modèle obtenue avec toutes les variables d'où la sélection des variables
+explicatives est très utile pour l'amélioration du modèle du départ.
+Après la comparaison des deux modèles obtenus par la procédure step et
+par la sélection des variables, nous avons remarqué que le modèle obtenu
+par la procédure step est meilleur que le modèle obtenu par la sélection
+des variables car il est homogène ,il a moins de valeurs aberrante et il
+a aussi la minimale valeur de AIC(aic=423.24). D'après cette
+comparaison, on peut conclure que l'efficacité de la procédure step
+
+
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```

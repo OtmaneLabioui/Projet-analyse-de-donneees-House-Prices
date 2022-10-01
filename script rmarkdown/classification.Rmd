@@ -1,0 +1,134 @@
+---
+title: "Classification"
+author: "ababou et labioui"
+date: "16/01/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+###lecture de donnée
+
+```{r}
+library("readxl")
+data_calf<-read_excel("California_Houses.xlsx")
+data_calf=transform(data_calf[,-1], Median_Income=as.numeric( Median_Income),Distance_to_coast=as.numeric(Distance_to_coast),
+                    Distance_to_LA=as.numeric(Distance_to_LA),Distance_to_SanJose=as.numeric(Distance_to_SanJose),
+                    Distance_to_SanFrancisco=as.numeric(Distance_to_SanFrancisco),Distance_to_SanDiego=as.numeric(Distance_to_SanDiego))
+summary(data_calf)
+```
+###1) Appliquer kmeans au tableau des variables quantitatives, le nombre de classes va varier de 1 à N et les variables doivent être centrées et réduites. N étant le plus petit entier tel que le taux d’inertie expliquée de la classification à N classes est supérieur à 0.95
+centrage et reduction des variables
+```{r}
+data_calf.cr<-scale(data_calf,center=T,scale=T)
+summary(data_calf.cr)
+
+```
+
+application de k_means au notre jeu de données:
+
+  -détermination du nombre des classes qui donne le taux d'inertie de 95%
+```{r}
+
+inertie.expl <- rep(0,times=35)
+k=2
+clus <- kmeans(data_calf.cr,centers=k,nstart=5)
+inertie.expl[k] <- clus$betweenss/clus$totss
+while(inertie.expl[k]<0.95){
+  k=k+1
+  clus <- kmeans(data_calf.cr,centers=k,nstart=5)
+  inertie.expl[k] <- clus$betweenss/clus$totss
+}
+max(inertie.expl)
+k-1
+```
+  N=35 est le plus petit entier tel que max(inertie.expl)>0.95 , donc le Taux d'inertie expliquée 
+  nous a aidé à valider le choix du nombre de class adequat pour que la variace intra class soit
+  minimal et dans l'autre cote la variance inter class soit maximal
+  
+###2)Détermination de Nc le nombre de classes à retenir en utilisant la méthode :                 var(I_2 )/var(I) <0,05, I étant le vecteur de taille N des taux d’inertie expliquée et I_2 étant le vecteur des (N-Nc) dernières valeurs des taux d’inertie expliquée
+  - graphe presente inertie explique en fonction de nombre de groupe
+```{r}
+plot(1:k,inertie.expl,type="b",xlab="Nb. de groupes",ylab="% inertie expliquée")
+
+```
+  - determination du Nc
+```{r}
+n=1
+regle=var(na.omit(inertie.expl[n+1:k]))*(k-n-1)*100/(var(inertie.expl)*(k-1))
+while(regle>5){
+  regle=var(na.omit(inertie.expl[n+1:k]))*(k-n-1)*100/(var(inertie.expl)*(k-1))
+  n=n+1
+}
+n
+regle
+```
+A partir de la valeur 3.897867 de li'inertie explique,l'adjonction d'un groupe supplémentaire
+n'augmente pas significativement la part d'inertie expliquée par la partition ,cela traduit par un nombre de class à retenir  egal à 10 .
+
+###3) Faire une CAH sur le tableau des variables quantitatives. Les variables doivent au préalable être centrées et réduites.
+```{r}
+library(FactoMineR)
+#Les données ont été préalablement centrées et réduites sur Excel
+R.scale <- function(Y){
+  #centrage réduction d'une variable - sans utilisation de boucle for
+  X<-Y
+  for (k in 1:ncol(X)){
+    i<-1
+    n <- length(X[,k])
+    moy <- mean(X[,k])
+    et <- sqrt((n-1)/n*var(X[,k]))
+    while(i<nrow(X)){
+    X[i,k] <- (X[i,k]-moy)/et
+    i<-i+1
+    }
+  }
+  return(Y)
+  
+}
+Y=R.scale(data_calf)
+#CAH
+Res<-HCPC(as.data.frame(data_calf),nb.clust=-1)
+Res$data.clust
+```
+Le dendrogramme « suggère » un découpage en 4 groupes.
+
+###3-1) Quelles sont les variables quantitatives les plus corrélées avec la variable classification 
+```{r}
+Res$desc.var$quanti.var
+```
+On déduit d'apres l'analyse de la variance  que la variable qui concerne Distance_to_SanDiego caractérise bien toutes les classes car elle a une p-value trés petites par rapport les autres c'est à dire il y'a une grande intensité de liaison significative avec la variable de classe, et aprés on a la variable de Distance_to_LA et ainsi de suite .
+De plus on observe que les varibles Distance_to_SanDiego , Distance_to_LA , Median_Income , Population sont les plus correles avec la variable classifciation
+
+###3-2)3.2) Faire la description des classes retenues par variables
+```{r}
+Res$desc.var$quanti
+```
+les variables qui ont p-value trés petit inférieure à 5% ou elles ont les moyenne par catégorie plus grand que ses moyennes total elles caractérisent bien les classes.
+###3.3) Calculer les taux d’inertie : Inertie Inter/Inertie total, avant et après la consolidation de la CAH.
+###taux d'inertie avant la consolidation
+```{r}
+Res$call$bw.before.consol
+
+```
+#### taux d'inertie aprés la consolidation:
+```{r}
+Res$call$bw.after.consol
+```
+###4) Comparer les classifications faites par kmeans et CAH
+
+La classification faites par K-Means a un taux d’inertie égale 78.3% avec un nombre de 
+classes égale à 10, et celle faites par CAH a un taux d’inertie égale 57,77% avec un nombre de classes égale à 4.
+D’après cette comparaison, on peut conclure que La classification faites par K-Means est 
+plus homogène et précise que celle faites par CAH.
+
+
+
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+

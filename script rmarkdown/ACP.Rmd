@@ -1,0 +1,306 @@
+---
+title: "ACP"
+output:
+  
+     pdf_document: 
+       toc: yes
+       fig_caption: yes
+       number_sections: yes
+       keep_tex: yes
+     df_print: paged
+---
+
+Importation de data
+
+```{r}
+library(readxl)
+data_house <- read_excel("California_Houses.xlsx")
+data_house$Median_Income <- as.numeric(data_house$Median_Income)
+data_house$Distance_to_coast <- as.numeric(data_house$Distance_to_coast)
+data_house$Distance_to_LA <- as.numeric(data_house$Distance_to_LA)
+data_house$Distance_to_SanDiego <- as.numeric(data_house$Distance_to_SanDiego)
+data_house$Distance_to_SanJose <- as.numeric(data_house$Distance_to_SanJose)
+data_house$Distance_to_SanFrancisco <- as.numeric(data_house$Distance_to_SanFrancisco)
+```
+
+Les informations sur data
+
+```{r}
+summary(data_house)
+str(data_house)
+```
+
+Nuages de points
+
+```{r}
+pairs(data_house)
+```
+
+1-Application de l'ACP normé
+
+```{r}
+library(FactoMineR)
+res<-PCA(data_house,axes=c(1,2))
+attributes(res)
+```
+
+2-Les raisons pour centrer et réduire les variables dans l'analyse en composantes principales, ceci est particulièrement recommandé lorsque les variables sont mesurées dans différentes unités (par exemple: kilogrammes, kilomètres, centimètres, ...); sinon, le résultat de l'ACP obtenue sera fortement affecté.
+
+3-Calcul l'indice KMO et les indices MSAI
+
+```{r}
+library(psych)
+KMO(cor(data_house))
+
+
+```
+
+On a l'indice MSA globale = 0.7 alors les corrélations entre les variables de moyenne qualité et on a tous les MSA pour chaque variable est supérieur à 0.5 donc l'adéquation de l'échantillonnage est acceptable.
+
+4-Calcul de valeurs propres
+
+```{r}
+res$eig[,1]
+
+```
+
+Le pourcentage d'inertie de chaque valeur propre
+
+```{r}
+res$eig[,2]
+
+```
+
+Le cumul des pourcentages d'inertie
+
+```{r}
+res$eig[,3]
+
+```
+
+5-Le graphique des valeurs propres.
+
+```{r}
+plot(1:12,res$eig[,1],type="b",ylab="Valeurs propres",xlab="Composantes",main="graphique des valeurs propres")
+barplot(res$eig[,1],main="Eigenvalues", names.arg=paste("dim",1:nrow(res$eig)))
+```
+
+6-Détermination du dimension du sous espace en utilisant la règle rapport des variances
+
+```{r}
+nrow(res$eig)
+var(res$eig[1:12,1])*11/(var(res$eig[,1])*11)
+#supérieur à 0,05 
+var(res$eig[2:12,1])*10/(var(res$eig[,1])*11)
+#supérieur à 0,05
+var(res$eig[3:12,1])*9/(var(res$eig[,1])*11)
+#supérieur à 0,05
+var(res$eig[4:12,1])*8/(var(res$eig[,1])*11)
+#inférieur à 0,05 
+
+
+
+```
+
+*alors la dimension de sous espace E est **3** d'apres le règle rapport de variances*
+
+**Nuage des variables**
+
+7-Calcule le cos2 des variables sur le sous espace
+
+```{r}
+print(res$var$cos2,digit=2)
+```
+
+8-Distinguer les variables bien représentées, moyennement représentées et faiblement représentées sur le sous espace E
+
+```{r}
+print(t(apply(res$var$cos2,1,cumsum)),digit=2)
+```
+
+Cos2 total des variables sur Dim.1, Dim.2 et Dim.3 **(dim E=3).**
+
+-   Un cos2 élevé indique une bonne représentation de la variable sur les axes principaux.
+
+-   Un faible cos2 indique que la variable n'est pas parfaitement représentée par les axes principaux
+
+```{r}
+
+cos_totale<-sort(t(apply(res$var$cos2,1,cumsum))[,3],decreasing=TRUE)
+print(t(apply(res$var$cos2,1,cumsum))[,1:3],digit=2)
+barplot(cos_totale,ylab="Qualite de representation",main="Cos2 total des variables sur Dim.1, Dim.2 et Dim.3")
+
+
+```
+
+Les variables bien représentées sont :
+
+```{r}
+for (i in 1:12){
+if (0.7 < cos_totale[i] ) print(cos_totale[i])
+}
+
+```
+
+Les variables moyennement représentées
+
+```{r}
+
+for (i in 1:12){
+if (0.5<cos_totale[i]&& cos_totale[i]<0.7) print(cos_totale[i])
+}
+
+
+```
+
+\
+Les variables faiblement représentées\
+
+```{r}
+for (i in 1:12){
+if ( cos_totale[i]< 0.5) print(cos_totale[i])
+}
+
+```
+
+9-Calcule du contribution des variables dans chaque axe du sous espace
+
+```{r}
+contrib<-data.frame(res$var$contrib)
+print(res$var$contrib,digit=2)
+
+```
+
+10-Application du CAH au tableau des contributions des variables aux axes du sous espace
+
+```{r}
+cah<-HCPC(contrib,nb.clust=-1)
+cah$desc.var
+
+```
+
+#les variables de \$'1' contribuent à les axes 2 et 4, ne contribuent pas à l'axe 1.
+
+#les variables de \$'2'contribuent à l'axe 1, ne contribuent pas à les axes 3 et 4.
+
+#les variables de \$'3' contribuent à l'axe 3.
+
+#les variables de \$'3' contribuent à l'axe 5.
+
+11-Tracer le nuage des variables projeté sur les 2 premiers axes.
+
+```{r}
+
+plot(res$var$cor[,1],res$var$cor[,2],xlab="Dim 1",ylab="Dim 2")
+
+```
+
+12-les variables qui sont relativement bien corrélées (positivement et négativement) avec les axes du 1^er^ plan factoriel sont :\
+
+```{r}
+dim1=res$var$cor[,1]
+for (i in 1:12){
+if (abs(dim1[i])>0.9) print(dim1[i])
+}
+
+```
+
+**Nuage des individus**
+
+13-Calcule du cos2 des individus sur le sous espace
+
+```{r}
+print(res$ind$cos2,digit=2)
+```
+
+14-Distinguer les individus bien représentées, moyennement représentées et faiblement représentées sur le sous espace
+
+```{r}
+head(t(apply(res$ind$cos2,1,cumsum)),digit=2)
+```
+
+Cos2 total des individus sur Dim.1, Dim.2 et Dim.3 **(dim E=3).**
+
+-   Un cos2 élevé indique une bonne représentation de l'individu sur les axes principaux.
+
+-   Un faible cos2 indique que l'individu n'est pas parfaitement représentée par les axes principaux
+
+```{r}
+
+cos_totale_ind<-sort(t(apply(res$ind$cos2,1,cumsum))[,3],decreasing=TRUE)
+head(t(apply(res$ind$cos2,1,cumsum))[,1:3],digit=2)
+barplot(cos_totale_ind,ylab="Qualite de representation",main="Cos2 total d'individus sur Dim.1, Dim.2 et Dim.3")
+
+
+```
+
+L'individus bien représentées sont :
+
+```{r}
+for (i in 1:109){
+if (0.7 < cos_totale_ind[i] ) print(cos_totale_ind[i])
+}
+
+```
+
+L'individus moyennement représentées
+
+```{r}
+
+for (i in 1:109){
+if (0.5<cos_totale_ind[i]&& cos_totale_ind[i]<0.7) print(cos_totale_ind[i])
+}
+
+
+```
+
+\
+L'individus faiblement représentées\
+
+```{r}
+for (i in 1:109){
+if ( cos_totale_ind[i]< 0.5) print(cos_totale_ind[i])
+}
+
+```
+
+15-Calcule du contribution des individus dans chaque axe du sous espace
+
+```{r}
+contrib_ind<-data.frame(res$ind$contrib)
+print(res$ind$contrib,digit=2)
+```
+
+16-Application du CAH au tableau des contributions des individus aux axes du sous espace
+
+```{r}
+cah_ind<-HCPC(contrib_ind,nb.clust=-1)
+cah_ind$desc.var
+```
+
+#les ind de \$'1' contribuent à l'axe 3
+
+#les ind de \$'2' contribuent à l'axe 4 et ne contribuent ni à l'axe 2,  ni à l'axe 3.
+
+#les ind de \$'3' ne contribuent ni à l'axe 1, ni à l'axe 3,  ni à l'axe 4, ni à l'axe 5.
+
+#les ind de \$'4' contribuent à l'axe 2 et à l'axe 3
+
+#les ind de \$'5' contribuent à l'axe 5.
+
+#les ind de \$'6' contribuent à les axes 1 et 2.
+
+17-Tracer le nuage des individus projeté sur les 2 premiers axes
+
+```{r}
+plot(res,invisible="var")
+#plot(res$ind$coord[,1],res$ind$coord[,2],xlab="Dim 1",ylab="Dim 2")
+```
+
+```{r}
+plot(res$ind$coord[,1],res$ind$coord[,2],xlab="Dim 1",ylab="Dim 2")
+```
+
+**18-Conclusion**
+
+Après l'application de l'ACP, nous avons réduit les 12 variables en 5 composantes principales. Cette réduction de dimensionnalité nous a permis est utilisée pour extraire et de visualiser les informations importantes contenues dans une table de données sur un plan factoriel et nous a permis de connaître les individus et les variables qui contribuent le plus dans le sous espace obtenu. On peut conclure que L'ACP peut être une première analyse pour l'étude d'une population dont les résultats seront enrichis par une autre analyse factorielle ou encore une classification automatique des données avec des variables quantitatives.

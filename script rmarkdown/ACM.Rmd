@@ -1,0 +1,330 @@
+---
+title: "ACM"
+output: pdf_document
+---
+
+Importation de data
+
+```{r}
+
+library(readxl)
+
+data_house <- read_excel("California_Houses.xlsx")
+data_house$Median_Income <- as.numeric(data_house$Median_Income)
+data_house$Distance_to_coast <- as.numeric(data_house$Distance_to_coast)
+data_house$Distance_to_LA <- as.numeric(data_house$Distance_to_LA)
+data_house$Distance_to_SanDiego <- as.numeric(data_house$Distance_to_SanDiego)
+data_house$Distance_to_SanJose <- as.numeric(data_house$Distance_to_SanJose)
+data_house$Distance_to_SanFrancisco <- as.numeric(data_house$Distance_to_SanFrancisco)
+```
+
+1-Regroupez dans un fichier Excel, les variables quantitatives et les variables qualitatives ainsi que le taux de discrétisation de chaque transformation
+
+```{r}
+#centrage réduction des données
+data_house<-as.data.frame(scale(data_house,center=T,scale=T))
+data_kmeans=matrix(nrow = 109, ncol = 12)
+taux_inertie=matrix(nrow = 1, ncol = 12)
+for(i in 1:ncol(data_house)){
+km <- kmeans(data_house[,i],centers=3,nstart=5)
+data_kmeans[,i] <- km$cluster
+taux_inertie[,i]=km$betweenss/km$totss
+}
+#transformer matrice to date frame 
+taux_inertie=as.data.frame(taux_inertie)
+data_kmeans=as.data.frame(data_kmeans)
+#copier les nomes des colonnes
+names(data_kmeans)=names(data_house)
+names(taux_inertie)=names(data_house)
+
+data_kmeans[,1]=factor(data_kmeans[,1],labels = c('MH-','MH+','MH++'))
+data_kmeans[,2]=factor(data_kmeans[,2],labels = c('MI-','MI+','MI++'))
+data_kmeans[,3]=factor(data_kmeans[,3],labels = c('MA-','MA+','MA++'))
+data_kmeans[,4]=factor(data_kmeans[,4],labels = c('TR-','TR+','TR++'))
+data_kmeans[,5]=factor(data_kmeans[,5],labels = c('TB-','TB+','TB++'))
+data_kmeans[,6]=factor(data_kmeans[,6],labels = c('P-','P+','P++'))
+data_kmeans[,7]=factor(data_kmeans[,7],labels = c('H-','H+','H++'))
+data_kmeans[,8]=factor(data_kmeans[,8],labels = c('DC-','DC+','DC++'))
+data_kmeans[,9]=factor(data_kmeans[,9],labels = c('DL-','DL+','DL++'))
+data_kmeans[,10]=factor(data_kmeans[,10],labels = c('DSD-','DSD+','DSD++'))
+data_kmeans[,11]=factor(data_kmeans[,11],labels = c('DSJ-','DSJ+','DSJ++'))
+data_kmeans[,12]=factor(data_kmeans[,12],labels = c('DSF-','DSF+','DSF++'))
+
+#ecrire dans un fichier excel 
+library(xlsx)
+# Ecrire la prémiere table 
+write.xlsx(data_house, file = "data_kmeans.xlsx",sheetName="les variables quantitatives", append=FALSE)
+# Ajouter une deuxième table
+write.xlsx(data_kmeans, file = "data_kmeans.xlsx", sheetName="les variables qualitatives ",append=TRUE)
+# Ajouter une troisième table
+write.xlsx(taux_inertie, file = "data_kmeans.xlsx",  sheetName="le taux de discrétisation de chaque transformation", append=TRUE)
+#on a le taux de discrétisation est supérieur à 0.5. 
+```
+
+2-Construction de tableau disjonctif complet
+
+```{r}
+library(FactoMineR)
+#Construction du tableau disjonctif complet
+tabl_dis <- tab.disjonctif(data_kmeans)
+
+
+```
+
+3-Calcule de fréquence de chaque modalité et rechercher la présence d'une modalité rare (fréquence \< 0.01). Si elle existe, il faut soit l'éliminer soit la combiner avec une autre modalité
+
+```{r}
+table_freq=matrix(nrow = 12, ncol = 3)
+table_freq[1,]=table(data_kmeans$Median_House_Value)
+table_freq[2,]=table(data_kmeans$Median_Income)
+table_freq[3,]=table(data_kmeans$Median_Age)
+table_freq[4,]=table(data_kmeans$Tot_Rooms)
+table_freq[5,]=table(data_kmeans$Tot_Bedrooms)
+table_freq[6,]=table(data_kmeans$Population)
+table_freq[7,]=table(data_kmeans$Households)
+table_freq[8,]=table(data_kmeans$Distance_to_coast)
+table_freq[9,]=table(data_kmeans$Distance_to_LA)
+table_freq[10,]=table(data_kmeans$Distance_to_SanDiego)
+table_freq[11,]=table(data_kmeans$Distance_to_SanJose)
+table_freq[12,]=table(data_kmeans$Distance_to_SanFrancisco)
+table_freq=as.data.frame(table_freq)
+colnames(table_freq) <- c("-","+","++")
+table_freq=table_freq/109
+print(colSums(table_freq < 0.01))
+#n'existe aucune modalité rare 
+```
+
+4-) Application de l'ACM au tableau disjonctif complet et précision de nombre d'individus, et de nombre de variables et celui des modalités
+
+```{r}
+
+res<-MCA(data_kmeans,ncp=6,graph=FALSE)
+#le nombre d’individus
+nrow(res$ind$coord)
+#le nombre de variables
+nrow(res$var$eta2)
+#le nombre de modalités
+nrow(res$var$coord)
+
+```
+
+5-les valeurs propres, le pourcentage d'inertie de chaque valeur propre ainsi que le cumul des pourcentages d'inertie.
+
+```{r}
+#les valeurs propres
+res$eig[,1]
+# le pourcentage d’inertie de chaque valeur propre
+res$eig[,2]
+#le cumul des pourcentages d’inertie
+res$eig[,3]
+
+```
+
+6-le graphique des valeurs propres
+
+```{r}
+
+plot(res$eig[,1],type="b",ylab="Valeurs propres",xlab="Composantes",main="graphique des valeurs propres")
+barplot(res$eig[,1],main="Eigenvalues", names.arg=paste("dim",1:nrow(res$eig)))
+```
+
+7-Détermination du dimension du sous espace en utilisant la règle rapport des variances
+
+```{r}
+nrow(res$eig)
+var(res$eig[1:24,1])*23/(var(res$eig[,1])*23)
+#supérieur à 0,05 
+var(res$eig[2:24,1])*22/(var(res$eig[,1])*23)
+#supérieur à 0,05
+var(res$eig[3:24,1])*21/(var(res$eig[,1])*23)
+#supérieur à 0,05
+var(res$eig[4:24,1])*20/(var(res$eig[,1])*23)
+#supérieur à 0,05
+var(res$eig[5:24,1])*19/(var(res$eig[,1])*23)
+#supérieur à 0,05
+var(res$eig[6:24,1])*18/(var(res$eig[,1])*23)
+#supérieur à 0,05
+var(res$eig[7:24,1])*17/(var(res$eig[,1])*23)
+#inférieur à 0,05 
+#Le sous espace de projection est constitué des 6 premiers axes
+```
+
+*alors la dimension de sous espace E est **6** d'apres le règle rapport de variances*
+
+**Nuage de Modalités**
+
+8-Calcule le cos2 des modalités sur le sous espace
+
+```{r}
+print(res$var$cos2,digit=2)
+```
+
+9-Distinguer les modalités bien représentées, moyennement représentées et faiblement représentées sur le sous espace E
+
+```{r}
+print(t(apply(res$var$cos2,1,cumsum)),digit=2)
+```
+
+Cos2 total des modalités sur Dim.1, Dim.2, Dim.3, Dim.4, Dim.5, Dim.6. **(dim E=6).**
+
+-   Un cos2 élevé indique une bonne représentation de la modalité sur les axes principaux.
+
+-   Un faible cos2 indique que la modalité n'est pas parfaitement représentée par les axes principaux.
+
+```{r}
+cos_totale<-sort(t(apply(res$var$cos2,1,cumsum))[,6],decreasing=TRUE)
+barplot(cos_totale,ylab="Qualite de representation",main="Cos2 total des variables jusqu'a Dim.6")
+
+```
+
+Les modalités bien représentées sont :
+
+```{r}
+for (i in 1:36){
+if (0.7 < cos_totale[i] ) print(cos_totale[i])
+}
+```
+
+Les modalités moyennement représentées
+
+```{r}
+
+for (i in 1:36){
+if (0.5<cos_totale[i]&& cos_totale[i]<0.7) print(cos_totale[i])
+}
+
+```
+
+Les modalités faiblement représentées
+
+```{r}
+for (i in 1:36){
+if ( cos_totale[i]< 0.5) print(cos_totale[i])
+}
+
+```
+
+10-Calcule ducontribution des modalités dans chaque axe du sous espace
+
+```{r}
+contrib<-data.frame(res$var$contrib)
+print(res$var$contrib,digit=2)
+```
+
+11-Application du CAH au tableau des contributions des modalités aux axes du sous espace
+
+```{r}
+cah<-HCPC(contrib,nb.clust=-1)
+cah$desc.var
+
+```
+
+#les modalités de \$'1' contribuent à les axes 2, 3 et 4 mais ne contribuent pas à l'axe 5.
+
+#les modalités de \$'2' ne contribuent ni à l'axe 2,  ni à l'axe 4.
+
+#les modalités de \$'3' contribuent à l'axe 6.
+
+#Aucun modalité ne contribuent significativement aux axes 1 et 5.
+
+12-Tracer le nuage des modalités projeté sur les 2 premiers axes
+
+```{r}
+plot(res,invisible="ind")
+
+```
+
+**Nuage des individus**
+
+13-Calcule du cos2 des individus sur le sous espace
+
+```{r}
+print(res$ind$cos2,digit=2)
+
+```
+
+14-Distinguer les individus bien représentés, moyennement représentés et faiblement représentés sur le sous espace
+
+```{r}
+head(t(apply(res$ind$cos2,1,cumsum)),digit=2)
+```
+
+```{r}
+cos_totale_ind<-sort(t(apply(res$ind$cos2,1,cumsum))[,6],decreasing=TRUE)
+barplot(cos_totale_ind,ylab="Qualite de representation",main="Cos2 total d'individus jusqu'a Dim.6")
+```
+
+L'individus bien représentées sont :
+
+```{r}
+for (i in 1:109){
+if (0.7 < cos_totale_ind[i] ) print(cos_totale_ind[i])
+}
+
+```
+
+L'individus moyennement représentées
+
+```{r}
+for (i in 1:109){
+if (0.5<cos_totale_ind[i]&& cos_totale_ind[i]<0.7) print(cos_totale_ind[i])
+}
+
+```
+
+L'individus faiblement représentées
+
+```{r}
+for (i in 1:109){
+if ( cos_totale_ind[i]< 0.5) print(cos_totale_ind[i])
+}
+
+```
+
+15-Calcule du contribution des individus dans chaque axe du sous espace
+
+```{r}
+contrib_ind<-data.frame(res$ind$contrib)
+print(res$ind$contrib,digit=2)
+
+```
+
+16-Application du CAH au tableau des contributions des individus aux axes du sous espace
+
+```{r}
+cah_ind<-HCPC(contrib_ind,nb.clust=-1)
+cah_ind$desc.var
+
+```
+
+#les ind de \$'1' contribuent à l'axe 5
+
+#les ind de \$'2' ne contribuent ni à l'axe 1, ni à l'axe 2,  ni à l'axe 4, ni à l'axe 5 et ni à l'axe 6.
+
+#les ind de \$'3' contribuent à l'axe 4
+
+#les ind de \$'4' contribuent à l'axe 6 et à l'axe 1
+
+#les ind de \$'5' contribuent à les axes 2 ,3 et 4 .
+
+#les ind de \$'6' contribuent à les axes 1 et 2.
+
+**Nuage des variables**
+
+17-Calculer les coefficients de corrélation des variables avec les projections sur les axes du sous espace
+
+```{r}
+res$var$eta2
+```
+
+18-Tracer le graphique des coefficients de corrélation des variables avec les projections sur le 1^er^ plan factoriel
+
+```{r}
+plot(res,choix="var")
+```
+
+**19-Conclusion**
+
+Après l'application de l'ACM, nous avons réduit les 36 modalités en 6 composantes. Cette réduction de dimensionnalité nous a permis de visualiser les modalités et les individus sur un plan factoriel et nous a permis de connaître les individus et les modalités qui contribuent le plus dans le sous espace obtenu.
+
+On peut conclure que l'ACM a un rôle très important résumer l'information contenu dans un grand nombre de variables afin de faciliter l'interprétention des corrélations existantes entre ces différentes variables qui sont qualitatives.
